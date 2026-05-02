@@ -2,19 +2,14 @@
 // UNIVERSUS — Supabase Configuration & Auth Module
 // =====================================================
 
-const SUPABASE_URL = 'https://otxvqphwtuldkrglfwxh.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90eHZxcGh3dHVsZGtyZ2xmd3hoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwOTk4OTgsImV4cCI6MjA4ODY3NTg5OH0.jRyaHr3k96dm5-486S-EXvNespBl9Iwh2bIupM1YnVU';
+var SUPABASE_URL = 'https://otxvqphwtuldkrglfwxh.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90eHZxcGh3dHVsZGtyZ2xmd3hoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwOTk4OTgsImV4cCI6MjA4ODY3NTg5OH0.jRyaHr3k96dm5-486S-EXvNespBl9Iwh2bIupM1YnVU';
 
-// Inicializar o cliente Supabase
-let supabase;
+// Inicializar o cliente Supabase (usa _sb para nao conflitar com window.supabase do SDK)
+var _sb;
 try {
-  const sb = window.supabase;
-  if (sb && sb.createClient) {
-    supabase = sb.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    console.log('Supabase inicializado com sucesso');
-  } else {
-    console.error('Supabase SDK nao carregou. window.supabase =', typeof window.supabase);
-  }
+  _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  console.log('Supabase inicializado com sucesso');
 } catch (e) {
   console.error('Erro ao inicializar Supabase:', e);
 }
@@ -30,7 +25,7 @@ try {
  * @returns {Promise<{user, error}>}
  */
 async function signUp(email, password, name, role) {
-  const { data, error } = await supabase.auth.signUp({
+  const { data, error } = await _sb.auth.signUp({
     email,
     password,
     options: {
@@ -47,7 +42,7 @@ async function signUp(email, password, name, role) {
  * @returns {Promise<{user, session, error}>}
  */
 async function signIn(email, password) {
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await _sb.auth.signInWithPassword({
     email,
     password
   });
@@ -58,7 +53,7 @@ async function signIn(email, password) {
  * Logout
  */
 async function signOut() {
-  const { error } = await supabase.auth.signOut();
+  const { error } = await _sb.auth.signOut();
   if (!error) {
     window.location.href = 'tela-login.html';
   }
@@ -70,15 +65,31 @@ async function signOut() {
  * @returns {Promise<{user, profile}>}
  */
 async function getUser() {
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const { data: { user }, error } = await _sb.auth.getUser();
   if (error || !user) return { user: null, profile: null };
 
   // Buscar perfil
-  const { data: profile } = await supabase
+  let { data: profile } = await _sb
     .from('profiles')
     .select('*')
     .eq('id', user.id)
     .single();
+
+  // Se o perfil nao existe, criar automaticamente
+  if (!profile) {
+    const meta = user.user_metadata || {};
+    const { data: newProfile } = await _sb
+      .from('profiles')
+      .insert({
+        id: user.id,
+        name: meta.name || 'Usuario',
+        email: user.email,
+        role: meta.role || 'aluno'
+      })
+      .select()
+      .single();
+    profile = newProfile;
+  }
 
   return { user, profile };
 }
@@ -87,7 +98,7 @@ async function getUser() {
  * Obter sessão atual
  */
 async function getSession() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await _sb.auth.getSession();
   return session;
 }
 
@@ -129,6 +140,31 @@ function redirectToDashboard(role) {
   }
 }
 
+// ===== STUDENT NICKNAME (sem autenticação Supabase) =====
+
+/**
+ * Salvar apelido do aluno no localStorage
+ * @param {string} nickname
+ */
+function setStudentNickname(nickname) {
+  localStorage.setItem('uv_student_nickname', nickname);
+}
+
+/**
+ * Obter apelido do aluno do localStorage
+ * @returns {string|null}
+ */
+function getStudentNickname() {
+  return localStorage.getItem('uv_student_nickname');
+}
+
+/**
+ * Remover apelido do aluno (logout do aluno)
+ */
+function clearStudentNickname() {
+  localStorage.removeItem('uv_student_nickname');
+}
+
 // ===== QUIZ HELPERS =====
 
 /**
@@ -155,7 +191,7 @@ async function createQuiz(quizData, questionsData) {
   let accessCode = generateAccessCode();
 
   // Inserir quiz
-  const { data: quiz, error: quizError } = await supabase
+  const { data: quiz, error: quizError } = await _sb
     .from('quizzes')
     .insert({
       creator_id: user.id,
@@ -181,7 +217,7 @@ async function createQuiz(quizData, questionsData) {
     order_num: i + 1
   }));
 
-  const { error: questionsError } = await supabase
+  const { error: questionsError } = await _sb
     .from('questions')
     .insert(questionsToInsert);
 
@@ -197,7 +233,7 @@ async function getMyQuizzes() {
   const { user } = await getUser();
   if (!user) return { data: [], error: { message: 'Não autenticado' } };
 
-  const { data, error } = await supabase
+  const { data, error } = await _sb
     .from('quizzes')
     .select('*, questions(count)')
     .eq('creator_id', user.id)
@@ -210,7 +246,7 @@ async function getMyQuizzes() {
  * Buscar todos os quizzes ativos (para alunos)
  */
 async function getActiveQuizzes() {
-  const { data, error } = await supabase
+  const { data, error } = await _sb
     .from('quizzes')
     .select('*, questions(count)')
     .order('created_at', { ascending: false });
@@ -222,7 +258,7 @@ async function getActiveQuizzes() {
  * Buscar quiz por código de acesso
  */
 async function getQuizByCode(code) {
-  const { data, error } = await supabase
+  const { data, error } = await _sb
     .from('quizzes')
     .select('*, questions(count)')
     .eq('access_code', code.toUpperCase())
@@ -235,7 +271,7 @@ async function getQuizByCode(code) {
  * Buscar perguntas de um quiz
  */
 async function getQuizQuestions(quizId) {
-  const { data, error } = await supabase
+  const { data, error } = await _sb
     .from('questions')
     .select('*')
     .eq('quiz_id', quizId)
@@ -248,7 +284,7 @@ async function getQuizQuestions(quizId) {
  * Deletar um quiz
  */
 async function deleteQuiz(quizId) {
-  const { error } = await supabase
+  const { error } = await _sb
     .from('quizzes')
     .delete()
     .eq('id', quizId);
@@ -260,7 +296,7 @@ async function deleteQuiz(quizId) {
  * Ativar/desativar quiz
  */
 async function toggleQuizActive(quizId, isActive) {
-  const { error } = await supabase
+  const { error } = await _sb
     .from('quizzes')
     .update({ is_active: isActive })
     .eq('id', quizId);
@@ -275,7 +311,7 @@ async function submitQuizAttempt(quizId, answers, score, totalQuestions, correct
   const { user } = await getUser();
   if (!user) return { error: { message: 'Não autenticado' } };
 
-  const { data, error } = await supabase
+  const { data, error } = await _sb
     .from('quiz_attempts')
     .insert({
       quiz_id: quizId,
@@ -298,7 +334,7 @@ async function getMyAttempts() {
   const { user } = await getUser();
   if (!user) return { data: [], error: { message: 'Não autenticado' } };
 
-  const { data, error } = await supabase
+  const { data, error } = await _sb
     .from('quiz_attempts')
     .select('*, quizzes(title, category)')
     .eq('student_id', user.id)
@@ -314,7 +350,7 @@ async function getAttemptsForMyQuizzes() {
   const { user } = await getUser();
   if (!user) return { data: [], error: { message: 'Não autenticado' } };
 
-  const { data, error } = await supabase
+  const { data, error } = await _sb
     .from('quiz_attempts')
     .select('*, quizzes!inner(title, category, creator_id), profiles!quiz_attempts_student_id_fkey(name)')
     .eq('quizzes.creator_id', user.id)
@@ -330,7 +366,7 @@ async function saveAvatarConfig(avatarConfig) {
   const { user } = await getUser();
   if (!user) return { error: { message: 'Não autenticado' } };
 
-  const { error } = await supabase
+  const { error } = await _sb
     .from('profiles')
     .update({ avatar_config: avatarConfig })
     .eq('id', user.id);
@@ -346,7 +382,7 @@ async function saveAvatarConfig(avatarConfig) {
 async function joinQuizSession(quizId, studentName) {
   const { user } = await getUser();
 
-  const { data, error } = await supabase
+  const { data, error } = await _sb
     .from('quiz_sessions')
     .insert({
       quiz_id: quizId,
@@ -364,7 +400,7 @@ async function joinQuizSession(quizId, studentName) {
  * Sair da sala de espera
  */
 async function leaveQuizSession(sessionId) {
-  const { error } = await supabase
+  const { error } = await _sb
     .from('quiz_sessions')
     .delete()
     .eq('id', sessionId);
@@ -376,7 +412,7 @@ async function leaveQuizSession(sessionId) {
  * Buscar jogadores na sala de espera de um quiz
  */
 async function getSessionPlayers(quizId) {
-  const { data, error } = await supabase
+  const { data, error } = await _sb
     .from('quiz_sessions')
     .select('*')
     .eq('quiz_id', quizId)
@@ -390,7 +426,7 @@ async function getSessionPlayers(quizId) {
  * Escutar mudanças em tempo real na sala de espera
  */
 function subscribeToSession(quizId, callback) {
-  return supabase
+  return _sb
     .channel(`quiz_session_${quizId}`)
     .on('postgres_changes',
       { event: '*', schema: 'public', table: 'quiz_sessions', filter: `quiz_id=eq.${quizId}` },
@@ -404,6 +440,6 @@ function subscribeToSession(quizId, callback) {
  */
 function unsubscribeFromSession(channel) {
   if (channel) {
-    supabase.removeChannel(channel);
+    _sb.removeChannel(channel);
   }
 }

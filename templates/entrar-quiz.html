@@ -253,7 +253,7 @@
     <div class="nebula nebula-2"></div>
     <h1 class="title">UNIVERSUS</h1>
 
-    <a href="pagina-inicial.html" class="home-link" title="Inicio">&#8592;</a>
+    <a href="pagina-inicial-aluno.html" class="home-link" title="Inicio">&#8592;</a>
 
     <div class="main-card">
         <!-- SCREEN 1: Enter Code -->
@@ -367,7 +367,7 @@
     // ===== MOCK QUIZ DATA (replaced by Supabase) =====
     let foundQuiz = null;
 
-    // Load supabase config
+    // Load config
     (async () => {
         // Check if code was passed via URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -377,11 +377,11 @@
             document.getElementById('pasteCode').dispatchEvent(new Event('input'));
         }
 
-        // Pre-fill name if logged in
-        if (typeof getUser === 'function') {
-            const { user, profile } = await getUser();
-            if (profile) {
-                document.getElementById('nameInput').value = profile.name || '';
+        // Pre-fill name from student nickname
+        if (typeof getStudentNickname === 'function') {
+            const nickname = getStudentNickname();
+            if (nickname) {
+                document.getElementById('nameInput').value = nickname;
             }
         }
     })();
