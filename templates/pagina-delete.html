@@ -519,9 +519,18 @@
 
     // ===== SUPABASE INTEGRATION =====
     (async () => {
-        if (typeof requireAuth !== 'function') return;
-        const { user, profile } = await requireAuth('professor');
-        if (!user) return;
+        try {
+            if (typeof _sb !== 'undefined' && _sb) {
+                const { data: { session } } = await _sb.auth.getSession();
+                if (!session) {
+                    window.location.href = 'tela-login.html';
+                    return;
+                }
+            } else { return; }
+        } catch (err) {
+            console.log('Auth check failed:', err);
+            return;
+        }
 
         try {
             const { data, error } = await getMyQuizzes();

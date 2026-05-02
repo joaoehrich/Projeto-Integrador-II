@@ -300,12 +300,20 @@
             clearMsg();
         }
 
+        function clearMsg() {
+            document.querySelectorAll('.message').forEach(m => { m.className='message'; m.textContent=''; });
+        }
+
+        function showMessage(el, text, type) {
+            el.textContent = text; el.className = 'message ' + type;
+        }
+
         // Choice buttons
         document.getElementById('choiceTeacher').addEventListener('click', () => showCard(loginCard));
         document.getElementById('choiceStudent').addEventListener('click', () => {
             showCard(studentCard);
             // Pre-fill if nickname exists
-            const saved = getStudentNickname();
+            const saved = localStorage.getItem('uv_student_nickname');
             if (saved) document.getElementById('nicknameInput').value = saved;
             setTimeout(() => document.getElementById('nicknameInput').focus(), 100);
         });
@@ -318,37 +326,6 @@
         document.getElementById('backFromLogin').addEventListener('click', () => showCard(choiceCard));
         document.getElementById('backFromRegister').addEventListener('click', () => showCard(choiceCard));
         document.getElementById('backFromStudent').addEventListener('click', () => showCard(choiceCard));
-
-        function clearMsg() {
-            document.querySelectorAll('.message').forEach(m => { m.className='message'; m.textContent=''; });
-        }
-
-        function showMessage(el, text, type) {
-            el.textContent = text; el.className = 'message ' + type;
-        }
-
-        // ===== CHECK IF ALREADY LOGGED IN (PROFESSOR) =====
-        (async () => {
-            try {
-                const session = await getSession();
-                if (session) {
-                    const { profile } = await getUser();
-                    if (profile && profile.role === 'professor') {
-                        window.location.href = 'pagina-inicial.html';
-                        return;
-                    }
-                }
-            } catch (err) {
-                console.log('Auto-login check failed:', err);
-            }
-
-            // Check if student has saved nickname
-            const nickname = getStudentNickname();
-            if (nickname) {
-                window.location.href = 'pagina-inicial-aluno.html';
-                return;
-            }
-        })();
 
         // ===== STUDENT NICKNAME ENTRY =====
         const nicknameInput = document.getElementById('nicknameInput');
@@ -364,7 +341,8 @@
                 showMessage(studentMsg, 'O apelido deve ter pelo menos 2 caracteres.', 'error');
                 return;
             }
-            setStudentNickname(nickname);
+            // Save nickname directly to localStorage
+            localStorage.setItem('uv_student_nickname', nickname);
             showMessage(studentMsg, `Bem-vindo, ${nickname}!`, 'success');
             setTimeout(() => {
                 window.location.href = 'pagina-inicial-aluno.html';
@@ -470,6 +448,33 @@
                 showMessage(msg, 'Erro de conexao: ' + (err.message || 'verifique sua internet'), 'error');
             }
         });
+
+        // ===== AUTO-LOGIN CHECK (runs AFTER all listeners are set up) =====
+        (async () => {
+            // First check student nickname (direct localStorage, no dependencies)
+            const nickname = localStorage.getItem('uv_student_nickname');
+            if (nickname) {
+                window.location.href = 'pagina-inicial-aluno.html';
+                return;
+            }
+
+            // Then check teacher Supabase session
+            try {
+                if (typeof _sb !== 'undefined' && _sb) {
+                    const { data: { session } } = await _sb.auth.getSession();
+                    if (session) {
+                        const { data: { user } } = await _sb.auth.getUser();
+                        if (user) {
+                            // Has a valid session — go to teacher page
+                            window.location.href = 'pagina-inicial.html';
+                            return;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.log('Auto-login check failed:', err);
+            }
+        })();
     </script>
 </body>
 </html>

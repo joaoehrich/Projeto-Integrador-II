@@ -808,8 +808,8 @@
 
     // ===== STUDENT NICKNAME CHECK =====
     (async function initPage() {
-        // Check if student has a nickname
-        const nickname = typeof getStudentNickname === 'function' ? getStudentNickname() : null;
+        // Read nickname directly from localStorage (no dependency on supabase-config.js)
+        const nickname = localStorage.getItem('uv_student_nickname');
         if (!nickname) {
             window.location.href = 'tela-login.html';
             return;
@@ -819,7 +819,7 @@
         document.getElementById('settingsUserRole').textContent = 'Aluno';
 
         document.getElementById('logoutBtn').addEventListener('click', () => {
-            if (typeof clearStudentNickname === 'function') clearStudentNickname();
+            localStorage.removeItem('uv_student_nickname');
             window.location.href = 'tela-login.html';
         });
 
@@ -842,7 +842,7 @@
 
             grid.innerHTML = quizzes.map(q => {
                 const qCount = q.questions?.[0]?.count || 0;
-                return `<div class="quiz-card" onclick="window.location.href='entrar-quiz.html?code=${q.access_code||''}'" style="cursor:pointer;">
+                return `<div class="quiz-card" onclick="window.location.href='entrar-quiz.html'" style="cursor:pointer;">
                     <span class="cat">${esc(q.category)}</span>
                     <h4>${esc(q.title)}</h4>
                     <p>${esc(q.description) || 'Sem descricao'}</p>
@@ -850,7 +850,6 @@
                         <span>${qCount} perguntas</span>
                         <span>${q.difficulty}</span>
                     </div>
-                    ${q.access_code ? '<div style="margin-top:8px;font-size:0.7rem;color:#a78bfa;">Codigo: '+q.access_code+'</div>' : ''}
                 </div>`;
             }).join('');
 

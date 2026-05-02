@@ -804,16 +804,59 @@
 
     // ===== SUPABASE INTEGRATION =====
     (async function initPage() {
-        if (typeof requireAuth !== 'function') { console.error('supabase-config.js nao carregou'); return; }
+        if (typeof _sb === 'undefined' || !_sb) {
+            console.error('Supabase nao inicializado');
+            return;
+        }
 
-        const { user, profile } = await requireAuth('professor');
-        if (!user) return;
+        // Check if user is logged in
+        let currentUser = null;
+        let currentProfile = null;
 
-        document.getElementById('settingsUserName').textContent = profile.name || 'Professor';
+        try {
+            const { data: { session } } = await _sb.auth.getSession();
+            if (!session) {
+                // No session at all — redirect to login
+                window.location.href = 'tela-login.html';
+                return;
+            }
+
+            // We have a session, try to get user and profile
+            const { user, profile } = await getUser();
+            currentUser = user;
+            currentProfile = profile;
+
+            if (!currentUser) {
+                window.location.href = 'tela-login.html';
+                return;
+            }
+
+            // If profile exists but not professor, redirect
+            if (currentProfile && currentProfile.role !== 'professor') {
+                window.location.href = 'pagina-inicial-aluno.html';
+                return;
+            }
+
+            // If no profile, use user metadata as fallback
+            if (!currentProfile) {
+                const meta = currentUser.user_metadata || {};
+                currentProfile = {
+                    name: meta.name || 'Professor',
+                    role: meta.role || 'professor',
+                    email: currentUser.email
+                };
+            }
+        } catch (err) {
+            console.error('Auth check error:', err);
+            // If we can't check auth, just show the page with defaults
+            currentProfile = { name: 'Professor', role: 'professor' };
+        }
+
+        document.getElementById('settingsUserName').textContent = currentProfile.name || 'Professor';
         document.getElementById('settingsUserRole').textContent = 'Professor';
 
-        if (profile.avatar_config && Object.keys(profile.avatar_config).length > 0) {
-            Object.assign(P, profile.avatar_config);
+        if (currentProfile.avatar_config && Object.keys(currentProfile.avatar_config).length > 0) {
+            Object.assign(P, currentProfile.avatar_config);
             localStorage.setItem('uv_char', JSON.stringify(P));
             document.getElementById('charNameSidebar').textContent = P.name || 'Personagem';
             if (typeof buildAvatar === 'function' && G) { buildAvatar(); }
