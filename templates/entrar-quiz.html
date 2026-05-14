@@ -885,6 +885,28 @@
                 <span class="result-q">${esc(q.question_text)}</span>
             </div>`;
         }).join('');
+
+        // ===== SALVAR RESULTADO NO LOCALSTORAGE =====
+        try {
+            const attempt = {
+                quizId: foundQuiz?.id || enteredCode,
+                quizTitle: foundQuiz?.title || 'Quiz ' + enteredCode,
+                category: foundQuiz?.category || '',
+                score: pct,
+                correctAnswers: correctCount,
+                totalQuestions: total,
+                playerName: playerName,
+                completedAt: new Date().toISOString()
+            };
+
+            const stored = JSON.parse(localStorage.getItem('uv_quiz_attempts') || '[]');
+            stored.unshift(attempt); // Mais recente primeiro
+            // Manter no máximo 50 tentativas
+            if (stored.length > 50) stored.length = 50;
+            localStorage.setItem('uv_quiz_attempts', JSON.stringify(stored));
+        } catch (err) {
+            console.log('Erro ao salvar resultado no localStorage:', err);
+        }
     }
 
     // Retry button
